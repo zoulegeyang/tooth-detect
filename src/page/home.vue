@@ -1,134 +1,146 @@
 <template>
-    <div>
-        <head-top></head-top>
-		<section class="data_section">
-			<header class="section_title">数据统计</header>
-			<el-row :gutter="20" style="margin-bottom: 10px;">
-                <el-col :span="4"><div class="data_list today_head"><span class="data_num head">当日数据：</span></div></el-col>
-				<el-col :span="4"><div class="data_list"><span class="data_num">{{userCount}}</span> 新增用户</div></el-col>
-				<el-col :span="4"><div class="data_list"><span class="data_num">{{orderCount}}</span> 新增订单</div></el-col>
-                <el-col :span="4"><div class="data_list"><span class="data_num">{{adminCount}}</span> 新增管理员</div></el-col>
-			</el-row>
-            <el-row :gutter="20">
-                <el-col :span="4"><div class="data_list all_head"><span class="data_num head">总数据：</span></div></el-col>
-                <el-col :span="4"><div class="data_list"><span class="data_num">{{allUserCount}}</span> 注册用户</div></el-col>
-                <el-col :span="4"><div class="data_list"><span class="data_num">{{allOrderCount}}</span> 订单</div></el-col>
-                <el-col :span="4"><div class="data_list"><span class="data_num">{{allAdminCount}}</span> 管理员</div></el-col>
-            </el-row>
-		</section>
-		<tendency :sevenDate='sevenDate' :sevenDay='sevenDay'></tendency>
+  <div>
+    <div class="header">根管治疗后台管理系统</div>
+    <div class="container" v-if="!finishedDetection">
+      <div class="center">
+        <input type="file" class="file" ref="file" @change="showImg" />
+        <!-- <div style="width: 100%"> -->
+
+        <!-- </div> -->
+        <div class="upload" @click="upLoadfile">
+          <i class="el-icon-plus" v-if="!fileName"></i>
+          <div v-else style="width:100%;">
+              <div v-for="item in imgList" :key="item.name" style="width:100%;overflow:hidden;height:100%;">
+            <img style="width:100%;" :src='"/static/teeth/"+item.name' alt="" v-if="item.name==fileName"/>
+          </div>
+          </div>
+        </div>
+      </div>
+      <div class="center" style="text-align: center; color: #666" v-if="!fileName">
+        先上传图片
+      </div>
+      <div class="center">
+        <el-button type="primary" :loading="isLoading" :disabled="!Boolean(fileName)" @click="startDetection">{{
+          buttonMessage
+        }}</el-button>
+      </div>
+      <el-dialog :visible.sync="dialogVisible">
+        <img width="100%" :src="dialogImageUrl" alt="" />
+      </el-dialog>
     </div>
+    <HomeDetail class="detail" v-else :imgDetail="imgList[imgIndex]" @back="handleBack"/>
+  </div>
 </template>
 
 <script>
-	import headTop from '../components/headTop'
-	import tendency from '../components/tendency' 
-	import dtime from 'time-formater'
-	import {userCount, orderCount, getUserCount, getOrderCount, adminDayCount, adminCount} from '@/api/getData'
-    export default {
-    	data(){
-    		return {
-    			userCount: null,
-    			orderCount: null,
-                adminCount: null,
-                allUserCount: null,
-                allOrderCount: null,
-                allAdminCount: null,
-    			sevenDay: [],
-    			sevenDate: [[],[],[]],
-    		}
-    	},
-    	components: {
-    		headTop,
-    		tendency,
-    	},
-    	mounted(){
-    		this.initData();
-    		for (let i = 6; i > -1; i--) {
-    			const date = dtime(new Date().getTime() - 86400000*i).format('YYYY-MM-DD')
-    			this.sevenDay.push(date)
-    		}
-    		this.getSevenData();
-    	},
-        computed: {
-
-        },
-    	methods: {
-    		async initData(){
-    			const today = dtime().format('YYYY-MM-DD')
-    			Promise.all([userCount(today), orderCount(today), adminDayCount(today), getUserCount(), getOrderCount(), adminCount()])
-    			.then(res => {
-    				this.userCount = res[0].count;
-    				this.orderCount = res[1].count;
-                    this.adminCount = res[2].count;
-                    this.allUserCount = res[3].count;
-                    this.allOrderCount = res[4].count;
-                    this.allAdminCount = res[5].count;
-    			}).catch(err => {
-    				console.log(err)
-    			})
-    		},
-    		async getSevenData(){
-    			const apiArr = [[],[],[]];
-    			this.sevenDay.forEach(item => {
-    				apiArr[0].push(userCount(item))
-    				apiArr[1].push(orderCount(item))
-                    apiArr[2].push(adminDayCount(item))
-    			})
-    			const promiseArr = [...apiArr[0], ...apiArr[1], ...apiArr[2]]
-    			Promise.all(promiseArr).then(res => {
-    				const resArr = [[],[],[]];
-					res.forEach((item, index) => {
-						if (item.status == 1) {
-							resArr[Math.floor(index/7)].push(item.count)
-						}
-					})
-					this.sevenDate = resArr;
-    			}).catch(err => {
-    				console.log(err)
-    			})
-    		}
-    	}
+import HomeDetail from "./homeComponents/detectionDetail"
+import {mapMutations} from 'vuex'
+export default {
+  components: {
+    HomeDetail,
+  },
+  data() {
+    return {
+      dialogImageUrl: "",
+      dialogVisible: false,
+      disabled: false,
+      isLoading: false,
+      buttonMessage: "点击开始检测",
+      fileName: "",
+      imgIndex:undefined, //用来表示当前哪个图片被选中了 好给子组件传这个图片的参数
+      imgList: [
+        {name:"2F6184FD-79E6-4B94-8AE3-95E4A77E0AE8.png",score:false,rules:{isExpand:false,isNotfull:true,glueRemove:false,pulpIntact:true,rootBranch:true,candalMissing:true,SeparationEquipment:true,isBisNotBendend:true,glueSeal:true,plubClose:true}},
+        {name:"B9265079-0BB4-49B9-A28D-C7EF9D6477D8.png",score:true,rules:{isExpand:false,isNotfull:false,glueRemove:false,pulpIntact:false,rootBranch:false,candalMissing:false,SeparationEquipment:false,isBisNotBendend:false,glueSeal:false,plubClose:false}},
+        {name:"CA2A4E7F-7973-488C-AC4B-3CE1977AA56D.png",score:true,rules:{isExpand:false,isNotfull:false,glueRemove:false,pulpIntact:false,rootBranch:false,candalMissing:false,SeparationEquipment:false,isBisNotBendend:false,glueSeal:false,plubClose:false}},
+        {name:"QQ20201123-134701@2x.png",score:true,rules:{isExpand:false,isNotfull:false,glueRemove:false,pulpIntact:false,rootBranch:false,candalMissing:false,SeparationEquipment:false,isBisNotBendend:false,glueSeal:false,plubClose:false}}
+      ],
+      finishedDetection:false,
+    };
+  },
+  methods: {
+    ...mapMutations(['saveHistoryList']),
+    handleBack() {
+      this.finishedDetection = false;
+      this.buttonMessage = '点击开始检测',
+      this.isLoading = false;
+      this.fileName = '';
+    },
+    handleRemove(file) {
+      console.log(file);
+    },
+    handlePictureCardPreview(file) {
+      this.dialogImageUrl = file.url;
+      this.dialogVisible = true;
+    },
+    handleDownload(file) {
+      console.log(file);
+    },
+    upLoadfile() {
+      this.$refs.file.click();
+    },
+    showImg() {
+    //   console.log(this.$refs.file.files[0].name);
+      this.fileName = this.$refs.file.files[0].name;
+      this.imgIndex = this.imgList.findIndex((item)=>{
+        return item.name == this.fileName;
+      })
+    //   this.url = "../assets/teeth/" + this.fileName;
+    //   console.log(this.url);
+    },
+    startDetection() {
+        this.isLoading = true;
+        this.buttonMessage = '正在开始检测...'
+        setTimeout(() =>{
+          this.finishedDetection = true;
+          this.saveHistoryList(this.imgList[this.imgIndex]); // 将该图片对象放到历史订单里
+        },2000)
     }
+  },
+};
 </script>
 
-<style lang="less">
-	@import '../style/mixin';
-	.data_section{
-		padding: 20px;
-		margin-bottom: 40px;
-		.section_title{
-			text-align: center;
-			font-size: 30px;
-			margin-bottom: 10px;
-		}
-		.data_list{
-			text-align: center;
-			font-size: 14px;
-			color: #666;
-            border-radius: 6px;
-            background: #E5E9F2;
-            .data_num{
-                color: #333;
-                font-size: 26px;
-
-            }
-            .head{
-                border-radius: 6px;
-                font-size: 22px;
-                padding: 4px 0;
-                color: #fff;
-                display: inline-block;
-            }
-        }
-        .today_head{
-            background: #FF9800;
-        }
-        .all_head{
-            background: #20A0FF;
-        }
-	}
-    .wan{
-        .sc(16px, #333)
-    }
+<style scoped lang="less">
+.header {
+  height: 100px;
+  line-height: 100px;
+  padding: 10px 20px;
+  background-color: #64d575;
+  font-size: 20px;
+  font-weight: bold;
+  color: white;
+}
+.padding {
+  padding: 10px 20px;
+}
+.detail {
+}
+.file {
+  // opacity: 0;
+  // visibility: hidden;
+  display: none;
+}
+.upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  height: 100px;
+  // font-size: px;
+  border: 1px dashed #ddd;
+  font-size: 30px;
+  font-weight: normal;
+  overflow: hidden;
+}
+.center {
+  // width:200px;
+  // position: relative;
+  // left:50%;
+  // transform: translate(-50%);
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+.img {
+  width: 100%;
+}
 </style>
